@@ -1,0 +1,115 @@
+package lesson18;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+public class Main {
+    public static void main(String[] args) {
+        //System.out.println(LocalDate.parse("2020-10-05"));
+
+        final String URL = "https://raw.githubusercontent.com/productstar-team/javaTwo/master/resources/monthly_IBM.csv";
+
+        String data = getHttpRequest(URL);
+        //System.out.println(data);
+
+        String[] stocksData = data.split("\n");
+
+        ArrayList<Stock> stocksList = createStocksFromData(stocksData);
+
+        //System.out.println(stocksList);
+
+        findMaxAndMinStock(stocksList, FilterStock.CLOSE);
+
+    }
+
+    private static void findMaxAndMinStock(ArrayList<Stock> stocks, FilterStock filter) {
+        if (filter == FilterStock.CLOSE) {
+            System.out.println("Поиск акции по стоимости закрытия");
+            
+            Stock maxStock = stocks.stream()
+                    .max(
+                            (Stock o1, Stock o2) ->
+                            {
+                                return o1.getClose() == o2.getClose() ? 0 : o1.getClose() > o2.getClose() ? 1 : -1;
+                            }
+                    ).get();
+
+            Stock minStock = stocks.stream()
+                    .min(
+                            (Stock o1, Stock o2) ->
+                            {
+                                return o1.getClose() == o2.getClose() ? 0 : o1.getClose() > o2.getClose() ? 1 : -1;
+                            }
+                    ).get();
+
+            System.out.println(maxStock + ":" + maxStock.getClose());
+            System.out.println(minStock + ":" + minStock.getClose());
+
+        }
+    }
+
+    private static ArrayList<Stock> createStocksFromData(String[] stocksData) {
+        ArrayList<Stock> stocksList = new ArrayList<>();
+        List<String> stream = Arrays.stream(stocksData).skip(1).collect(Collectors.toList());
+        for (String data : stream) {
+            String[] cells = data.split(",");
+            Stock stock = createStock(cells);
+            stocksList.add(stock);
+        }
+
+        return stocksList;
+    }
+
+    private static Stock createStock(String[] cells) {
+        String date = cells[0];
+        Stock stock = Stock.emptyStock();
+        try {
+            double open = Double.parseDouble(cells[1]);
+            double high = Double.parseDouble(cells[2]);
+            double low = Double.parseDouble(cells[3]);
+            double close = Double.parseDouble(cells[4]);
+            long value = Long.parseLong(cells[5]);
+            stock = new Stock(LocalDate.parse(date), open, high, low, close, value);
+        } catch (PatternSyntaxException e) {
+            System.out.println("Ошибка формата входных данных");
+            throw new RuntimeException(e);
+        }
+
+        return stock;
+    }
+
+    public static String getHttpRequest(String URL) {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(URL))
+                .build();
+
+        HttpResponse<String> response;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException e) {
+            System.out.println("Ошибка получения данных: " + URL);
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            System.out.println("Операция получения данных прервана:" + URL);
+            throw new RuntimeException(e);
+        }
+
+        //System.out.println(response.statusCode());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("Ошибка получения данных. Статус: " + response.statusCode());
+            //System.out.println(response.body());
+        }
+
+        return String.valueOf(response.body());
+    }
+}
